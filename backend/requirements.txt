@@ -21,3 +21,12 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2026.2
 uvicorn==0.49.0
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pandas==2.2.3
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+scikit-learn==1.6.0
+joblib==1.4.2
+numpy==2.2.1
