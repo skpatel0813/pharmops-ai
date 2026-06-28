@@ -60,7 +60,8 @@ def overview():
 def medication_orders(
     status: str | None = None,
     risk_level: str | None = None,
-    priority: str | None = None
+    priority: str | None = None,
+    mode: str = "balanced"
 ):
     conditions = []
     params = {}
@@ -79,29 +80,79 @@ def medication_orders(
 
     where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
-    query = f"""
-    SELECT
-        order_id,
-        patient_id,
-        admission_id,
-        medication_name,
-        dose,
-        dose_unit,
-        route,
-        frequency,
-        priority,
-        verification_status,
-        pharmacist_note,
-        risk_score,
-        risk_level,
-        risk_reasons,
-        start_time,
-        stop_time
-    FROM medication_orders
-    {where_clause}
-    ORDER BY risk_score DESC NULLS LAST, start_time DESC NULLS LAST
-    LIMIT 250
-    """
+    if mode == "balanced":
+        query = f"""
+        WITH ranked_orders AS (
+            SELECT
+                order_id,
+                patient_id,
+                admission_id,
+                medication_name,
+                dose,
+                dose_unit,
+                route,
+                frequency,
+                priority,
+                verification_status,
+                pharmacist_note,
+                risk_score,
+                risk_level,
+                risk_reasons,
+                start_time,
+                stop_time,
+                ROW_NUMBER() OVER (
+                    PARTITION BY medication_name
+                    ORDER BY risk_score DESC NULLS LAST, start_time DESC NULLS LAST
+                ) AS med_rank
+            FROM medication_orders
+            {where_clause}
+        )
+        SELECT
+            order_id,
+            patient_id,
+            admission_id,
+            medication_name,
+            dose,
+            dose_unit,
+            route,
+            frequency,
+            priority,
+            verification_status,
+            pharmacist_note,
+            risk_score,
+            risk_level,
+            risk_reasons,
+            start_time,
+            stop_time
+        FROM ranked_orders
+        WHERE med_rank <= 10
+        ORDER BY risk_score DESC NULLS LAST, start_time DESC NULLS LAST
+        LIMIT 250
+        """
+    else:
+        query = f"""
+        SELECT
+            order_id,
+            patient_id,
+            admission_id,
+            medication_name,
+            dose,
+            dose_unit,
+            route,
+            frequency,
+            priority,
+            verification_status,
+            pharmacist_note,
+            risk_score,
+            risk_level,
+            risk_reasons,
+            start_time,
+            stop_time
+        FROM medication_orders
+        {where_clause}
+        ORDER BY risk_score DESC NULLS LAST, start_time DESC NULLS LAST
+        LIMIT 250
+        """
 
     return fetch_all(query, params)
 
@@ -131,7 +182,11 @@ def update_medication_order(order_id: str, payload: StatusUpdate):
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Medication order not found")
 
-    return {"message": "Medication order updated", "order_id": order_id}
+    return {
+        "message": "Medication order updated",
+        "order_id": order_id,
+        "status": payload.status
+    }
 
 
 @app.get("/api/antibiotic-reviews")
@@ -194,7 +249,11 @@ def update_antibiotic_review(review_id: str, payload: StatusUpdate):
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Antibiotic review not found")
 
-    return {"message": "Antibiotic review updated", "review_id": review_id}
+    return {
+        "message": "Antibiotic review updated",
+        "review_id": review_id,
+        "status": payload.status
+    }
 
 
 @app.get("/api/medication-reconciliation")
@@ -259,7 +318,8 @@ def update_med_rec(reconciliation_id: str, payload: MedRecUpdate):
 
     return {
         "message": "Medication reconciliation item updated",
-        "reconciliation_id": reconciliation_id
+        "reconciliation_id": reconciliation_id,
+        "status": payload.status
     }
 
 
@@ -323,9 +383,11 @@ def safety_events():
 @app.get("/api/charts/risk-distribution")
 def risk_distribution():
     query = """
-    SELECT risk_level, COUNT(*) AS count
+    SELECT
+        COALESCE(risk_level, 'unknown') AS risk_level,
+        COUNT(*) AS count
     FROM medication_orders
-    GROUP BY risk_level
+    GROUP BY COALESCE(risk_level, 'unknown')
     ORDER BY count DESC
     """
 
@@ -335,7 +397,9 @@ def risk_distribution():
 @app.get("/api/charts/top-medications")
 def top_medications():
     query = """
-    SELECT medication_name, COUNT(*) AS count
+    SELECT
+        medication_name,
+        COUNT(*) AS count
     FROM medication_orders
     WHERE medication_name IS NOT NULL
     GROUP BY medication_name
@@ -349,9 +413,11 @@ def top_medications():
 @app.get("/api/charts/inventory-risk")
 def inventory_risk():
     query = """
-    SELECT shortage_status, COUNT(*) AS count
+    SELECT
+        COALESCE(shortage_status, 'unknown') AS shortage_status,
+        COUNT(*) AS count
     FROM pharmacy_inventory
-    GROUP BY shortage_status
+    GROUP BY COALESCE(shortage_status, 'unknown')
     ORDER BY count DESC
     """
 
