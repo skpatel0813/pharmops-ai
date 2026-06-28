@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+backend/venv/
+.env
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Data
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# ML models
+backend/ml/*.joblib
+
+# OS
+.DS_Store
+Thumbs.db

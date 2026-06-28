@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: pharmops_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pharmops_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pharmops_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  pharmops_postgres_data:
